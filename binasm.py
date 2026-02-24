@@ -8,5 +8,5 @@ def lowerAssemblyCode(code: list[AssemblyCode]) -> list[Word]:
     return code
 
 def assembleCode(code: list[AssemblyCode], out = sys.stdout.buffer):
-    """ Assembles a List of Word objects to the target file. """
+    """ Assembles a List of AssemblyCode objects to the target file. """
     assembleWords(lowerAssemblyCode(code))
