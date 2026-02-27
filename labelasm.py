@@ -16,3 +16,15 @@ def assembleCode(code: list[LabeledAssemblyCode], out = sys.stdout.buffer):
         print("label {0} => {1}".format(label, location), file = sys.stderr)
 
     assembleWords(lowerAssemblyCode(newCode))
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+                    prog="labelasm",
+                    description="Assembles a sequence of LabeledAssemblyCode objects")
+    parser.add_argument("filename")
+    args = parser.parse_args()
+    
+    spec = importlib.util.spec_from_file_location("code", args.filename)
+    code = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(code)
+    assembleCode(code.CODE) 
