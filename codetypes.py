@@ -1,17 +1,20 @@
 #!/usr/bin/python3
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import Enum
 
 #####################################################################################
 ## Code classes
 class Code:
     pass
 class AssemblyCode(Code):
-    pass
+    # polymorphic function that is called
+    def encode(self):
+        pass
+
 class LabeledAssemblyCode(AssemblyCode):
     pass
 
-class Cond(IntEnum):
+class Cond(Enum):
     EQ = 0
     NE = 1
     CS = 2
@@ -37,7 +40,7 @@ class LabelRef(LabeledAssemblyCode):
     label: str
 
 @dataclass
-class Word(AssemblyCode):
+class Word(Code):
     """ Represents a 32-bit word in the final assembled output. """
     value: int # A 32-bit value either from -2^31 to 2^31 - 1 OR 0 to 2^32 -1
 
@@ -54,7 +57,7 @@ class Label(LabeledAssemblyCode):
 @dataclass
 class Add(AssemblyCode):
     """ Represents a ADD Rd, R1, Op2 instruction. Op2 is either a Reg or a Word
-        that can be represented as an rotate of an 8-bit word.
+        that can be represented as an rotate of an 8-bit word. 
 
         Usage: Add(Reg(1), Reg(2), Reg(3))
                Add(Reg(1), Reg(2), Word(15))
@@ -63,6 +66,9 @@ class Add(AssemblyCode):
     r1: Reg
     op2: Reg | Word
     cond: Cond = Cond.AL
+
+    def encode(self):
+        pass
 
 @dataclass
 class Sub(AssemblyCode):
@@ -73,6 +79,9 @@ class Sub(AssemblyCode):
     op2: Reg | Word
     cond: Cond = Cond.AL
 
+    def encode(self):
+        pass
+
 @dataclass
 class Cmp(AssemblyCode):
     """ Represents a CMP R1, Op2 instruction. Op2 is either a Reg or a Word
@@ -81,6 +90,9 @@ class Cmp(AssemblyCode):
     op2: Reg | Word
     cond: Cond = Cond.AL
 
+    def encode(self):
+        pass
+
 @dataclass
 class Mov(AssemblyCode):
     """ Represents a MOV R1, Op2 instruction. Op2 is either a Reg or a Word
@@ -88,6 +100,9 @@ class Mov(AssemblyCode):
     r1: Reg
     op2: Reg | Word
     cond: Cond = Cond.AL
+
+    def encode(self):
+        pass
 
 ######################################################################################
 ## Multiply, Divide
@@ -99,6 +114,9 @@ class Mul(AssemblyCode):
     r2: Reg
     cond: Cond = Cond.AL
 
+    def encode(self):
+        pass
+
 @dataclass
 class SDiv(AssemblyCode):
     """ Represents a SDIV Rd, R1, R2 instruction. """
@@ -107,6 +125,9 @@ class SDiv(AssemblyCode):
     r2: Reg
     cond: Cond = Cond.AL
 
+    def encode(self):
+        pass
+
 @dataclass
 class UDiv(AssemblyCode):
     """ Represents a UDIV Rd, R1, R2 instruction. """
@@ -114,6 +135,9 @@ class UDiv(AssemblyCode):
     r1: Reg
     r2: Reg
     cond: Cond = Cond.AL
+
+    def encode(self):
+        pass
 
 #######################################################################################
 ## Branch-to-offset

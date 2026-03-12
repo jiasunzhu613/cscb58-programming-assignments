@@ -3,8 +3,9 @@
 import sys
 from codetypes import *
 from wordasm import *
+from typing import Dict
 
-def eliminateLabels(code: list[LabeledAssemblyCode]) -> tuple[list[AssemblyCode], dict[string, int]]:
+def eliminateLabels(code: list[LabeledAssemblyCode]) -> tuple[list[AssemblyCode], Dict[str, int]]:
     """ Lowers away LabeledAssemblyCode instructions. Returns a tuple of AssemblyCode and
         a dictionary mapping label definitions to addresses."""
     return (code, {})

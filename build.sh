@@ -1,0 +1,1 @@
+python3 binasm.py "p{$1}q($2).py" > p($1)q($2).bin
