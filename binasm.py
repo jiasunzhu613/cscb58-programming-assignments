@@ -15,9 +15,13 @@ def lowerAssemblyCode(code: list[AssemblyCode]) -> list[Word]:
 
 def assembleCode(code: list[AssemblyCode], out = sys.stdout.buffer):
     """ Assembles a List of AssemblyCode objects to the target file. """
-    assembleWords(lowerAssemblyCode(code))
+    assembleWords(lowerAssemblyCode(code), out)
 
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        import os, msvcrt
+        msvcrt.setmode(sys.stdout.fileno(  ), os.O_BINARY)
+
     parser = argparse.ArgumentParser(
                     prog="labelasm",
                     description="Assembles a sequence of ssemblyCode objects")

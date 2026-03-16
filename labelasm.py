@@ -13,12 +13,16 @@ def eliminateLabels(code: list[LabeledAssemblyCode]) -> tuple[list[AssemblyCode]
 def assembleCode(code: list[LabeledAssemblyCode], out = sys.stdout.buffer):
     """ Assembles a List of LabeledAssemblyCode objects to the target file. """
     newCode, labels = eliminateLabels(code)
-    for (label, location) in labels:
-        print("label {0} => {1}".format(label, location), file = sys.stderr)
+    for label in labels:
+        print("label {0} => {1}".format(label, labels[label]), file=sys.stderr)
 
-    assembleWords(lowerAssemblyCode(newCode))
+    assembleWords(lowerAssemblyCode(newCode), out)
 
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        import os, msvcrt
+        msvcrt.setmode(sys.stdout.fileno(  ), os.O_BINARY)
+
     parser = argparse.ArgumentParser(
                     prog="labelasm",
                     description="Assembles a sequence of LabeledAssemblyCode objects")

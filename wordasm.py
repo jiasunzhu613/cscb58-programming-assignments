@@ -16,6 +16,10 @@ def assembleWords(code: list[Code], out = sys.stdout.buffer):
                     raise Exception("Word({0}) is out of range".format(v))
 
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        import os, msvcrt
+        msvcrt.setmode(sys.stdout.fileno(  ), os.O_BINARY)
+
     parser = argparse.ArgumentParser(
                     prog="wordasm",
                     description="Assembles a sequence of Word objects")
