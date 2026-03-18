@@ -1,4 +1,12 @@
-__pycache__
+# Base
+__pycache__/
 *-sol.py
-q1
-.dist
+.dist/
+
+# Solutions
+q1/
+q2/
+q3/
+q4/
+
+*.bin

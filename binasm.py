@@ -3,14 +3,12 @@ import sys
 from codetypes import *
 from wordasm import *
 
-def convertToEncoding(inst: AssemblyCode) -> Word:
-    print(inst.__class__)
-
 def lowerAssemblyCode(code: list[AssemblyCode]) -> list[Word]:
     """ Lowers away AssemblyCode instructions. """
     for i in range(len(code)):
-        code[i] = convertToEncoding(code[i])
+        code[i] = code[i].encode() if isinstance(code[i], AssemblyCode) else code[i]
 
+    # print(code)
     return code
 
 def assembleCode(code: list[AssemblyCode], out = sys.stdout.buffer):
