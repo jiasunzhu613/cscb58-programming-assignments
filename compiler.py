@@ -80,5 +80,5 @@ def generate(input_fs: list[Function], expr_types: ExpressionTypes, ftable: Symb
 def driver(intput_fs: list[Function]):
     expr_types, ftable = typecheck(intput_fs)
     asm_fns = generate(intput_fs, expr_types, ftable)
-    return asm_fns
+    return map(assembleCode, asm_fns)
 
