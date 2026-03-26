@@ -176,7 +176,7 @@ class Mov(AssemblyCode):
     """ Represents a MOV R1, Op2 instruction. Op2 is either a Reg or a Word
         that can be represented as an rotate of an 8-bit word. """
     r1: Reg
-    op2: Reg | Word
+    op2: Reg | Word | LabelRef
     cond: Cond = Cond.AL
 
     def encode(self):
@@ -204,6 +204,10 @@ class Mov(AssemblyCode):
 
         # print(hex(encoding))
         return Word(encoding)
+    
+    def resolve_label(self, curr_index):
+        if isinstance(self.op2, LabelRef):
+            self.op2 = self.op2.resolve_label(curr_index)
 
 ######################################################################################
 ## Multiply, Divide
@@ -326,7 +330,8 @@ class B(AssemblyCode):
         return Word(encoding)
     
     def resolve_label(self, curr_index):
-        self.offset = self.offset.resolve_label(curr_index)
+        if isinstance(self.offset, LabelRef):
+            self.offset = self.offset.resolve_label(curr_index)
 
 @dataclass
 class Bl(AssemblyCode):
@@ -360,7 +365,8 @@ class Bl(AssemblyCode):
         return Word(encoding)
 
     def resolve_label(self, curr_index):
-        self.offset = self.offset.resolve_label(curr_index)
+        if isinstance(self.offset, LabelRef):
+            self.offset = Word((curr_index + self.offset.resolve_label(curr_index).value + 2) * 4)
 
 ########################################################################################
 ## Branch-to-register

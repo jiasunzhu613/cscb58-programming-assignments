@@ -31,7 +31,7 @@ def eliminateLabels(code: list[LabeledAssemblyCode]) -> tuple[list[AssemblyCode]
         print("inst", instruction, index, file=sys.stderr)
         if isinstance(instruction, LabeledAssemblyCode):
             newCode.append(instruction.resolve_label(index))
-        elif isinstance(instruction, B) or isinstance(instruction, Bl):
+        elif isinstance(instruction, B) or isinstance(instruction, Bl) or isinstance(instruction, Mov):
             instruction.resolve_label(index)
             newCode.append(instruction)
         else:
