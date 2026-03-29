@@ -3,8 +3,8 @@ from dataclasses import dataclass
 
 
 class UnaryOp(Enum):
-    Not = 0
-    Negate = 1
+    Not = 0 # Logical not
+    Negate = 1 # Negative sign on integer
     Address = 2
 
 
@@ -19,11 +19,13 @@ class BinaryOp(Enum):
     Eq = 8
     Ne = 9
 
+# Statements encompass all possible lines sort of
 
 @dataclass
 class Statement:
     pass
 
+# Expressions handle some manipulation of data, and performing things on top of variables and Lvalues
 
 @dataclass
 class Expression(Statement):
@@ -35,10 +37,15 @@ class LValue:
     pass
 
 
-@dataclass(eq=False)
+# NOTE: We use eq=False to discourage value based equalities and only
+# allow equality to happen when the memory address of the underlying variables are the same
+
+# Normal variable Lvalue
+@dataclass(eq=False) # TODO: check is this is good
 class VarTarget(LValue):
     name: str
 
+# Dereferenced pointer Lvalue
 
 @dataclass(eq=False)
 class DerefTarget(LValue):
@@ -89,7 +96,7 @@ class Block(Statement):
 @dataclass
 class WhileLoop(Statement):
     test: Expression
-    body: Statement
+    body: Statement # need to check if its a Block type or some other expression, if Block type we will need to iterate
 
 
 @dataclass

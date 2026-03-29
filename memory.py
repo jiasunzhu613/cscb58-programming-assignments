@@ -3,9 +3,7 @@ from codetypes import *
 # SP is R13
 CODE = [
     # Explicitly set the value that is used as freelist pointer to start as NULL (0)
-    B(Word(0)),
-    LabelRef("freelist"),
-    Mov(Reg(0), LabelRef("freelist")),
+    LdrRel(Reg(0), LabelRef("freelist")),
     Bx(Reg(14)),
     # Global variables
     Label("freelist"), # This will ALWAYS refer to the start of the freelist allocator linkedlist

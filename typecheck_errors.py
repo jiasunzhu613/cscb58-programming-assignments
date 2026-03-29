@@ -8,7 +8,6 @@ class FunctionNotDefinedError(TypeCheckError):
     """Raised when trying to call a function that is not defined (i.e. not in the f table)"""
     pass
 
-
 class ArgumentCountMismatchError(TypeCheckError):
     """Raised call to a function has different number of arguments than the definition"""
     pass

@@ -21,6 +21,11 @@ class FunctionInformation:
     returnType: TType
     varTable: dict[str, TType]
 
+def typecheckExpression():
+    pass
+
+def typecheckStatement():
+    pass
 
 def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) -> ExpressionTypes:
     # You may modify this function and its input arguments as you'd like.
@@ -29,24 +34,64 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
     # The minimum required cases for the first checkpoint have been added for you
     expr_types: ExpressionTypes = {}
     match node:
-        case Function():
-            # TODO: call typecheckNode on all parameters, local vars, the body, and the return expression
+        case Constant():
+            if isinstance(node.value, int):
+                expr_types[node] = TType.Int
+            else:
+                expr_types[node] = TType.IntPtr
+        case VarDef(): # Create VarTarget instances 
+            expr_types[node] = node.type
+            # expr_types[VarTarget(name = node.name)] = node.type # This is used later for assignments, might not be needed
+            f_current.varTable[node.name] = node.type
+        case VarTarget():
             pass
-        case VarDef():
-            # TODO: add variable definition to the current function's variable table
+        case DerefTarget():
+            expr_types |= typecheckNode(node.address)
+
+            if isinstance(expr_types[node.address], TType.IntPtr):
+                raise ExpressionTypeMismatchError("Target cannot be dereferenced", node)
+        case UnExp():
+            expr_types |= typecheckNode(node.exp)
+
+            match node.op:
+                case UnaryOp.Not | UnaryOp.Negate | UnaryOp.Address:
+                    # Make sure the expression is Int
+                    if not isinstance(expr_types[node.exp], TType.Int):
+                        raise ExpressionTypeMismatchError("Expression needs to be integer type", node)
+        case BinExp():
+            expr_types |= typecheckNode(node.left)
+            expr_types |= typecheckNode(node.right)
+
+            match node.op:
+                case BinaryOp.Plus:
+                case BinaryOp.Subtract:
+                case BinaryOp.
+        # Have to propagate local var table in this case
+        case Function(): # A typecheck for function can come from a Call instance
+            for param in node.parameters:
+                expr_types |= typecheckNode(param, f_table, f_current)
+            for var_def in node.local_vars:
+                expr_types |= typecheckNode(var_def, f_table, f_current)
+
+            # check if body is a Block type
+            if isinstance(node.body, Block):
+                for line in node.body:
+                    expr_types |= typecheckNode(line, f_table)
+            else:
+                expr_types |= typecheckNode(node.body, f_table)
+            
+            # Check if param types and 
+        case Assign():
+            expr_types |= typecheckNode(node.left, f_table)
+            expr_types |= typecheckNode(node.right, f_table)
+
+            if expr_types[node.left] != expr_types[node.right]:
+                raise RuntimeError("Assign type mismatch")
+
+            expr_types[node] = expr_types[node.left]
+        case _:
             pass
-        case Block():
-            # TODO: typcheck all contained statements/expressions
-            pass
-        case Call():
-            # TODO: call typecheckNode on all arguments
-            # TODO: Check:
-            #       - called function is in f_table
-            #       - called function has same number of args as it's definition
-            #       - all arguments have the same type as the function definition
-            # and raise the relevant exception if one of the checks dont pass (see typecheck_errors.py)
-            pass
-    # Add more cases for remaining node types...
+    
     return expr_types
 
 
@@ -69,6 +114,7 @@ def generateNode(node, expr_types: ExpressionTypes, f_table: SymbolTable, f_curr
     return assembly_code
 
 
+# We are building ftable here and returning it out
 def typecheck(input_fs: list[Function]) -> tuple[ExpressionTypes, SymbolTable]:
     '''Checks type constraints on an input program input_fs, which consists of a list of Function objects.
 
@@ -91,12 +137,13 @@ def typecheck(input_fs: list[Function]) -> tuple[ExpressionTypes, SymbolTable]:
 
     # Initialize function table
     for function in input_fs:
-        paramTypes: list[TType] = []        # TODO: Initialize paramTypes
-        returnType: TType = TType.Int       # TODO: Initialize returnType
-        f_table[function.name] = FunctionInformation(paramTypes, returnType, {})
+        paramTypes: list[TType] = [param.type for param in function.parameters]
+        returnType: TType = function.retType
+        f_table[function.name] = FunctionInformation(paramTypes, returnType, {}) # TODO: this dict is the local scoped function local table
     
     # TODO: add the 5 builtin functions to the f_table
     
+    # TODO: check if the tmain function was found
     # Run typechecking on each function and add returned types to expr_types
     for function in input_fs:
         expr_types = expr_types | typecheckNode(function, f_table, f_table[function.name])

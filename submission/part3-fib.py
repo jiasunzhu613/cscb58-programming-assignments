@@ -10,9 +10,9 @@ CODE = [
     Bx(Reg(14)),
 
     Label("fib"),
-    Cmp(Reg(0), Word(1)), # Base case, <= 1, we return 1
+    Cmp(Reg(0), Word(1)), # Base case, <= 1, we return itself
     B(LabelRef("fib_body"), Cond.GT), # TODO: probably use a label later for body code
-    Mov(Reg(0), Word(1)),
+    # Mov(Reg(0), Word(1)),
     B(LabelRef("done")), # end function calls by branching back to LR
     
     Label("fib_body"),
