@@ -1,6 +1,5 @@
 from codetypes import * 
 
-# TODO: make AI check if this is correct
 """
 def pre_to_post(arr):
     root = arr[0]

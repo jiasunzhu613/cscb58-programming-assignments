@@ -11,7 +11,7 @@ class UnaryOp(Enum):
 class BinaryOp(Enum):
     Plus = 1
     Minus = 2
-    Subtract = 3
+    Multiply = 3
     Divide = 4
     Ge = 5
     Le = 6
