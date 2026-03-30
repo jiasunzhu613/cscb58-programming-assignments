@@ -361,12 +361,11 @@ class Bl(AssemblyCode):
         # Mask to 24 bits
         encoding |= offset_val & 0xFFFFFF
         
-        print(hex(encoding))
         return Word(encoding)
 
     def resolve_label(self, curr_index):
         if isinstance(self.offset, LabelRef):
-            self.offset = Word((curr_index + self.offset.resolve_label(curr_index).value + 2) * 4)
+            self.offset = self.offset.resolve_label(curr_index)
 
 ########################################################################################
 ## Branch-to-register
@@ -393,9 +392,24 @@ class Bx(AssemblyCode):
 
 @dataclass
 class Blx(AssemblyCode):
-    """ Represents a BLX R1 instruction. """
+    """ Represents a BLX R1 instruction. Branch and Link with Exchange - saves return address and exchanges instruction set. """
     r: Reg
     cond: Cond = Cond.AL
+
+    def encode(self):
+        encoding = 0
+        encoding |= self.cond.value
+        encoding <<= 8
+        encoding |= 0b00010010
+        for _ in range(3):
+            encoding <<= 4
+            encoding |= 0b1111
+        encoding <<= 4
+        encoding |= 0b0011  # BLX (branch and link) differs from BX (0b0001) by using 0b0011
+        encoding <<= 4
+        encoding |= self.r.reg
+
+        return Word(encoding)
 
 #########################################################################################
 ## Loads/stores

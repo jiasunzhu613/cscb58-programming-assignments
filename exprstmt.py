@@ -10,8 +10,8 @@ class UnaryOp(Enum):
 
 class BinaryOp(Enum):
     Plus = 1
-    Minus = 2
-    Multiply = 3
+    Multiply = 2
+    Subtract = 3
     Divide = 4
     Ge = 5
     Le = 6
@@ -21,13 +21,13 @@ class BinaryOp(Enum):
 
 # Statements encompass all possible lines sort of
 
-@dataclass
+@dataclass(eq=False)
 class Statement:
     pass
 
 # Expressions handle some manipulation of data, and performing things on top of variables and Lvalues
 
-@dataclass
+@dataclass(eq=False)
 class Expression(Statement):
     pass
 
