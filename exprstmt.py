@@ -18,6 +18,7 @@ class BinaryOp(Enum):
     Lt = 7
     Eq = 8
     Ne = 9
+    Gt = 10
 
 
 @dataclass(eq=False)
@@ -73,6 +74,10 @@ class Call(Expression):
 @dataclass(eq=False)
 class VarAccess(Expression):
     target: str
+
+@dataclass(eq=False)
+class DerefAccess(Expression):
+    address: Expression
 
 
 @dataclass(eq=False)
