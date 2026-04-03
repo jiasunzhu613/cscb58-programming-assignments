@@ -5,8 +5,6 @@ from dataclasses import dataclass
 class UnaryOp(Enum):
     Not = 0
     Negate = 1
-    Address = 2
-
 
 class BinaryOp(Enum):
     Plus = 1
