@@ -1,0 +1,107 @@
+
+    # Sub(Reg(13), Reg(13), Word(4)), Str(Reg(0), Reg(13), Word(0)),
+
+    # Mov(Reg(0), Word(7)), # set function call arg0
+    # Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    # Bl(LabelRef("malloc")),
+    # Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+    
+    # Mov(Reg(4), Reg(0)), 
+    # Ldr(Reg(0), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+
+
+    # TO test: we should print the value of the memory 4 bytes in front
+    # then print hte memory 100 bytes past to check remaining heap value
+    Ldr(Reg(1), Reg(0), Word(-4)),
+
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(0), Reg(13), Word(0)), # Store current LR on stack
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    Mov(Reg(0), Reg(1)), 
+    Bl(LabelRef("print")),
+    Mov(Reg(0), Word(ord("a"))),
+    Strb(Reg(0), Reg(4), Word(0)),
+    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), 
+    Ldr(Reg(0), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+
+    Ldr(Reg(1), Reg(0), Word(100)),
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(0), Reg(13), Word(0)), # Store current LR on stack
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    Mov(Reg(0), Reg(1)), 
+    Bl(LabelRef("print")),
+    Mov(Reg(0), Word(ord("a"))),
+    Strb(Reg(0), Reg(4), Word(0)),
+    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), 
+    Ldr(Reg(0), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+
+    Mov(Reg(0), Word(7)), # set function call arg0
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    Bl(LabelRef("malloc")),
+    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+
+    Ldr(Reg(1), Reg(0), Word(-4)),
+
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(0), Reg(13), Word(0)), # Store current LR on stack
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    Mov(Reg(0), Reg(1)), 
+    Bl(LabelRef("print")),
+    Mov(Reg(0), Word(ord("a"))),
+    Strb(Reg(0), Reg(4), Word(0)),
+    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), 
+    Ldr(Reg(0), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+
+    Ldr(Reg(1), Reg(0), Word(8)),
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(0), Reg(13), Word(0)), # Store current LR on stack
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    Mov(Reg(0), Reg(1)), 
+    Bl(LabelRef("print")),
+    Mov(Reg(0), Word(ord("a"))),
+    Strb(Reg(0), Reg(4), Word(0)),
+    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), 
+    Ldr(Reg(0), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+
+    Mov(Reg(0), Word(252)), # set function call arg0
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    Bl(LabelRef("malloc")),
+    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+
+    Ldr(Reg(1), Reg(0), Word(-4)),
+
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(0), Reg(13), Word(0)), # Store current LR on stack
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    Mov(Reg(0), Reg(1)), 
+    Bl(LabelRef("print")),
+    Mov(Reg(0), Word(ord("a"))),
+    Strb(Reg(0), Reg(4), Word(0)),
+    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), 
+    Ldr(Reg(0), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+
+    Ldr(Reg(1), Reg(0), Word(252)),
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(0), Reg(13), Word(0)), # Store current LR on stack
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    Mov(Reg(0), Reg(1)), 
+    Bl(LabelRef("print")),
+    Mov(Reg(0), Word(ord("a"))),
+    Strb(Reg(0), Reg(4), Word(0)),
+    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), 
+    Ldr(Reg(0), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+
+    # Mov(Reg(0), Reg(4)),
+    
+    # Sub(Reg(13), Reg(13), Word(4)), Str(Reg(0), Reg(13), Word(0)), # Store current LR on stack
+    # Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    # Mov(Reg(0), Reg(1)), 
+    # Bl(LabelRef("print")),
+    # Mov(Reg(0), Word(ord("a"))),
+    # Strb(Reg(0), Reg(4), Word(0)),
+    # Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), 
+    # Ldr(Reg(0), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+
+    # Ldr(Reg(1), Reg(0), Word(8)),
+    # Sub(Reg(13), Reg(13), Word(4)), Str(Reg(0), Reg(13), Word(0)), # Store current LR on stack
+    # Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    # Mov(Reg(0), Reg(1)), 
+    # Bl(LabelRef("print")),
+    # Mov(Reg(0), Word(ord("a"))),
+    # Strb(Reg(0), Reg(4), Word(0)),
+    # Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), 
+    # Ldr(Reg(0), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),

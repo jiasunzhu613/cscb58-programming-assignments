@@ -7,6 +7,7 @@ CODE = [
     Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
     Bx(Reg(14)),
     
+    # TODO: print is missing hard coded output for -2^31
     Label("print"),
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(1), Reg(13), Word(0)), # push R1 onto stack
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(2), Reg(13), Word(0)), # push R2 onto stack

@@ -27,6 +27,9 @@ def typecheckExpression():
 def typecheckStatement():
     pass
 
+def checkTyped(expr_types: ExpressionTypes, expressions: list[Expression], types: list[TType]):
+    return all([expr_types[expressions[i]] == types[i] for i in range(len(expressions))])
+
 def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) -> ExpressionTypes:
     # You may modify this function and its input arguments as you'd like.
 
@@ -43,29 +46,124 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
             expr_types[node] = node.type
             # expr_types[VarTarget(name = node.name)] = node.type # This is used later for assignments, might not be needed
             f_current.varTable[node.name] = node.type
+        case VarAccess():
+            if node.target not in f_current.varTable:
+                raise VariableNotDefinedError(f"Variable '{node.target}' not defined", node)
         case VarTarget():
-            pass
+            expr_types[node] = f_current.varTable[node.name]
         case DerefTarget():
             expr_types |= typecheckNode(node.address)
 
-            if isinstance(expr_types[node.address], TType.IntPtr):
-                raise ExpressionTypeMismatchError("Target cannot be dereferenced", node)
+            if expr_types[node.address] == TType.Int:
+                raise ExpressionTypeMismatchError("Integer cannot be dereferenced", node)
+            
+            expr_types[node] = TType.Int
         case UnExp():
             expr_types |= typecheckNode(node.exp)
 
             match node.op:
-                case UnaryOp.Not | UnaryOp.Negate | UnaryOp.Address:
+                case UnaryOp.Not | UnaryOp.Negate:
                     # Make sure the expression is Int
-                    if not isinstance(expr_types[node.exp], TType.Int):
+                    if expr_types[node.exp] != TType.Int:
                         raise ExpressionTypeMismatchError("Expression needs to be integer type", node)
+                    
+                    expr_types[node] = TType.Int
+                case UnaryOp.Address:
+                    # we are able to take address of any type
+                    expr_types[node] = TType.IntPtr
+            
         case BinExp():
             expr_types |= typecheckNode(node.left)
             expr_types |= typecheckNode(node.right)
 
             match node.op:
                 case BinaryOp.Plus:
-                case BinaryOp.Subtract:
-                case BinaryOp.
+                    if expr_types[node.left] == TType.IntPtr and expr_types[node.right] == TType.IntPtr:
+                        raise ExpressionTypeMismatchError("Cannot add IntPtr and IntPtr", node)
+                    
+                    if checkTyped(expr_types, [node.left, node.right], [TType.Int, TType.Int]):
+                        expr_types[node] = TType.Int
+                    elif checkTyped(expr_types, [node.left, node.right], [TType.IntPtr, TType.Int]):
+                        expr_types[node] = TType.IntPtr
+                    elif checkTyped(expr_types, [node.left, node.right], [TType.Int, TType.IntPtr]):
+                        expr_types[node] = TType.IntPtr
+
+                case BinaryOp.Minus:
+                    if expr_types[node.left] == TType.Int and expr_types[node.right] == TType.IntPtr:
+                        raise ExpressionTypeMismatchError("Cannot subtract IntPtr from Int", node)
+
+                    if checkTyped(expr_types, [node.left, node.right], [TType.Int, TType.Int]):
+                        expr_types[node] = TType.Int
+                    elif checkTyped(expr_types, [node.left, node.right], [TType.IntPtr, TType.Int]):
+                        expr_types[node] = TType.IntPtr
+                    elif checkTyped(expr_types, [node.left, node.right], [TType.IntPtr, TType.IntPtr]):
+                        expr_types[node] = TType.Int
+
+                case BinaryOp.Multiply:
+                    if expr_types[node.left] != TType.Int and expr_types[node.right] == TType.Int:
+                        raise ExpressionTypeMismatchError("Cannot multiply non integer expressions", node)
+                    expr_types[node] = TType.Int
+
+                case BinaryOp.Divide:
+                    if expr_types[node.left] != TType.Int and expr_types[node.right] == TType.Int:
+                        raise ExpressionTypeMismatchError("Cannot divide non integer expressions", node)
+                    expr_types[node] = TType.Int
+                
+                case BinaryOp.Ge | BinaryOp.Le | BinaryOp.Lt | BinaryOp.Eq | BinaryOp.Ne:
+                    pass
+
+        case Call():
+            # check if target exists
+            if node.target not in f_table:
+                raise FunctionNotDefinedError(f"Function named '{node.target}' is not defined", node)
+            
+            # check if argument types match parameter types
+            for arg in node.arguments:
+                expr_types |= typecheckNode(arg)
+
+            # Length check
+            target_fn_param_types = f_table[node.target].paramTypes
+            if len(node.arguments) != len(target_fn_param_types):
+                raise ArgumentCountMismatchError(
+                    f"Function '{node.target}' takes {len(f_table[node.target].paramTypes)}\
+                        arguments but only received{len(node.arguments)} arguments", node)
+            
+            # Type check
+            for i in range(len(node.arguments)):
+                if expr_types[node.arguments[i]] != target_fn_param_types[i]:
+                    raise ArgumentTypeMismatchError(f"Function '{node.target}' received {expr_types[node.arguments[i]]} but needed {target_fn_param_types[i]} for argument {i}", node)
+
+            expr_types[node] = f_table[node.target].returnType
+        
+        case WhileLoop():
+            # check if the condition is proper
+            expr_types |= typecheckNode(node.test)
+            if expr_types[node.test] != TType.Int:
+                raise ExpressionTypeMismatchError("Test for while loop should be Int typed", node)
+            
+            expr_types |= typecheckNode(node.body)
+
+        case If():
+            # check if the condition is proper
+            expr_types |= typecheckNode(node.test)
+            if expr_types[node.test] != TType.Int:
+                raise ExpressionTypeMismatchError("Test for while loop should be Int typed", node)
+            
+            expr_types |= typecheckNode(node.body)
+
+        case Assign():
+            expr_types |= typecheckNode(node.left, f_table, f_current)
+            expr_types |= typecheckNode(node.right, f_table, f_current)
+
+            if expr_types[node.left] != expr_types[node.right]:
+                raise AssignmentTypeMismatchError("Assignment type mismatch", node)
+
+            expr_types[node] = expr_types[node.left]
+
+        case Block():
+            for line in node.body:
+                expr_types |= typecheckNode(line)
+
         # Have to propagate local var table in this case
         case Function(): # A typecheck for function can come from a Call instance
             for param in node.parameters:
@@ -73,24 +171,9 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
             for var_def in node.local_vars:
                 expr_types |= typecheckNode(var_def, f_table, f_current)
 
-            # check if body is a Block type
-            if isinstance(node.body, Block):
-                for line in node.body:
-                    expr_types |= typecheckNode(line, f_table)
-            else:
-                expr_types |= typecheckNode(node.body, f_table)
-            
-            # Check if param types and 
-        case Assign():
-            expr_types |= typecheckNode(node.left, f_table)
-            expr_types |= typecheckNode(node.right, f_table)
-
-            if expr_types[node.left] != expr_types[node.right]:
-                raise RuntimeError("Assign type mismatch")
-
-            expr_types[node] = expr_types[node.left]
+            expr_types |= typecheckNode(node.body, f_table)
         case _:
-            pass
+            print("DEBUG: this default case should NEVER be invoked")
     
     return expr_types
 
@@ -141,9 +224,12 @@ def typecheck(input_fs: list[Function]) -> tuple[ExpressionTypes, SymbolTable]:
         returnType: TType = function.retType
         f_table[function.name] = FunctionInformation(paramTypes, returnType, {}) # TODO: this dict is the local scoped function local table
     
+    # Check if tmain is defined
+    if "tmain" not in f_table:
+        raise FunctionNotDefinedError("not entry point tmain")
+    
     # TODO: add the 5 builtin functions to the f_table
     
-    # TODO: check if the tmain function was found
     # Run typechecking on each function and add returned types to expr_types
     for function in input_fs:
         expr_types = expr_types | typecheckNode(function, f_table, f_table[function.name])

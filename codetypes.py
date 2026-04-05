@@ -171,6 +171,8 @@ class Cmp(AssemblyCode):
         return Word(encoding)
         
 
+# TODO: didnt handle max sizes i think... with rotate
+# If it is raw word, MOV can only handle 2^8 and 4 bit rotate, not 2^12
 @dataclass
 class Mov(AssemblyCode):
     """ Represents a MOV R1, Op2 instruction. Op2 is either a Reg or a Word
@@ -390,6 +392,7 @@ class Bx(AssemblyCode):
 
         return Word(encoding)
 
+# TODO: understand what this operation is doing
 @dataclass
 class Blx(AssemblyCode):
     """ Represents a BLX R1 instruction. Branch and Link with Exchange - saves return address and exchanges instruction set. """
