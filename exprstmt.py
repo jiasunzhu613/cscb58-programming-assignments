@@ -3,10 +3,8 @@ from dataclasses import dataclass
 
 
 class UnaryOp(Enum):
-    Not = 0 # Logical not
-    Negate = 1 # Negative sign on integer
-    Address = 2
-
+    Not = 0
+    Negate = 1
 
 class BinaryOp(Enum):
     Plus = 1
@@ -18,6 +16,7 @@ class BinaryOp(Enum):
     Lt = 7
     Eq = 8
     Ne = 9
+    Gt = 10
 
 # Statements encompass all possible lines sort of
 
@@ -80,6 +79,14 @@ class Call(Expression):
 @dataclass(eq=False)
 class VarAccess(Expression):
     target: str
+
+@dataclass(eq=False)
+class DerefAccess(Expression):
+    address: Expression
+
+@dataclass(eq=False)
+class AddressOf(Expression):
+    target: LValue
 
 
 @dataclass(eq=False)

@@ -6,7 +6,7 @@ from wordasm import *
 from binasm import *
 from typing import Dict
 
-def eliminateLabels(code: list[LabeledAssemblyCode]) -> tuple[list[AssemblyCode], Dict[str, int]]:
+def eliminateLabels(code: list[LabeledAssemblyCode | AssemblyCode]) -> tuple[list[AssemblyCode], Dict[str, int]]:
     """ Lowers away LabeledAssemblyCode instructions. Returns a tuple of AssemblyCode and
         a dictionary mapping label definitions to addresses."""
     # find all labeled assembly code first
@@ -43,7 +43,7 @@ def eliminateLabels(code: list[LabeledAssemblyCode]) -> tuple[list[AssemblyCode]
     print("Label mappings:", label_mapping, file=sys.stderr)        
     return (newCode, label_mapping)
 
-def assembleCode(code: list[LabeledAssemblyCode], out = sys.stdout.buffer):
+def assembleCode(code: list[LabeledAssemblyCode | AssemblyCode], out = sys.stdout.buffer):
     """ Assembles a List of LabeledAssemblyCode objects to the target file. """
     newCode, labels = eliminateLabels(code)
     for label in labels:
