@@ -10,6 +10,8 @@ PRINT_FUNCTION = [
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(4), Reg(13), Word(0)), # push R4 onto stack
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(5), Reg(13), Word(0)), # push R5 onto stack
 
+    Mov(Reg(5), Word(0)), # make sure to set R5 as 0 to start for counter!
+
     LdrRel(Reg(2), LabelRef("stdout")), # Store stdout memory mapped io
     Mov(Reg(3), Word(ord("0"))), 
     Cmp(Reg(0), Word(0)), # handle case when R0 starts as 0
@@ -58,47 +60,48 @@ PRINT_FUNCTION = [
     Bx(Reg(14))
 ]
 
+# TODO: handle case where user asks for too much memory
 # SP is R13
 CODE = [
     # Explicitly set the value that is used as freelist pointer to start as NULL (0)
     LdrRel(Reg(4), LabelRef("stdout")),
-    LdrRel(Reg(0), LabelRef("freelist")),
-    LdrRel(Reg(1), LabelRef("heap_start_size")),
-    Str(Reg(1), Reg(0), Word(0)), # set start size of heap 
-    Add(Reg(0), Reg(0), Word(4)), # set next pointer to point to NULL
-    Mov(Reg(1), Word(0)),
-    Str(Reg(1), Reg(0), Word(0)),
 
-    Mov(Reg(0), Word(100)), # set function call arg0
-    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
-    Bl(LabelRef("malloc")),
-    Mov(Reg(4), Reg(0)), 
-    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
-
-    Mov(Reg(0), Word(7)), # set function call arg0
-    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
-    Bl(LabelRef("malloc")),
-    Mov(Reg(5), Reg(0)), 
-    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+    # Mov(Reg(0), Word(100)), # set function call arg0
+    # Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    # Bl(LabelRef("malloc")),
+    # Mov(Reg(5), Reg(0)), 
+    # Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
 
     # Mov(Reg(0), Word(89)), # set function call arg0
     # Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
     # Bl(LabelRef("malloc")),
     # Mov(Reg(6), Reg(0)), 
     # Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+    
+    Mov(Reg(0), Reg(7)), # set function call arg0
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    Bl(LabelRef("malloc")),
+    Mov(Reg(4), Reg(0)), 
+    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
 
-    # Start freeing
-    Mov(Reg(0), Reg(5)), # set function call arg0
+    # # Start freeing
+    Mov(Reg(0), Reg(4)), # set function call arg0
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
     Bl(LabelRef("free")),
     Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+
+    Mov(Reg(0), Word(4)), # set function call arg0
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    Bl(LabelRef("malloc")),
+    Mov(Reg(5), Reg(0)), 
+    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
     
-    # Mov(Reg(0), Reg(6)), # set function call arg0
+    # Mov(Reg(0), Reg(5)), # set function call arg0
     # Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
     # Bl(LabelRef("free")),
     # Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
 
-    # Mov(Reg(0), Reg(4)), # set function call arg0
+    # Mov(Reg(0), Reg(6)), # set function call arg0
     # Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
     # Bl(LabelRef("free")),
     # Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
@@ -110,6 +113,12 @@ CODE = [
     Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
 
     Bx(Reg(14)),
+
+
+    # ===================================
+    # ======= FUNCTION ========
+    # ===================================
+
 
     # FUNC: to allocate a chunk of memory on the heap
     # Params: 
@@ -124,7 +133,20 @@ CODE = [
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(10), Reg(13), Word(0)), # Push R10 onto stacks
     # TODO: should traverse the freelist allocator to search for the "worst fit" free space to allocate memory into
     
+    LdrRel(Reg(4), LabelRef("is_freelist_init")),
+    Cmp(Reg(4), Word(0)),
+    B(LabelRef("freelist_skip_init"), Cond.NE),
+    LdrRel(Reg(4), LabelRef("freelist")),
+    LdrRel(Reg(5), LabelRef("heap_start_size")),
+    Str(Reg(5), Reg(4), Word(0)), # set start size of heap 
+    Mov(Reg(5), Word(0)),
+    Str(Reg(5), Reg(4), Word(4)), # set next pointer to point to 0
+    Mov(Reg(5), Word(1)),
+    StrRel(Reg(5), LabelRef("is_freelist_init")), # set init flag to true
+    B(LabelRef("freelist_skip_init")), 
     # Normalize the amount request first and + 4 for metadata header
+
+    Label("freelist_skip_init"),
     Mov(Reg(1), Word(4)),
     Add(Reg(0), Reg(0), Word(3)), # Add 3 
     UDiv(Reg(0), Reg(0), Reg(1)), # div 4
@@ -133,6 +155,9 @@ CODE = [
     Add(Reg(0), Reg(0), Word(4)), # add 4 for size header
 
     LdrRel(Reg(4), LabelRef("freelist")),
+    Cmp(Reg(4), Word(0)),
+    B(LabelRef("no_heap_remaining_to_allocate_error"), Cond.EQ),
+
     Ldr(Reg(5), Reg(4), Word(0)), # best size
     Cmp(Reg(5), Reg(0)),
     Mov(Reg(5), Reg(0), Cond.LT),
@@ -153,6 +178,8 @@ CODE = [
     B(LabelRef("freelist_loop")),
 
     Label("exit_freelist_loop"),
+    Cmp(Reg(6), Word(0)), 
+    B(LabelRef("malloc_block_requested_too_big_error"), Cond.EQ),
     # If pointer has any value, we can be guaranteed that it has enough room to store the requested memory and the 4 byte header
     # Best sized will be stored in R0, the pointer to corresponding will be stored in R1
     # If there is no prev, we need to StrRel into freelist label
@@ -167,8 +194,9 @@ CODE = [
     Add(Reg(6), Reg(6), Reg(2)), # Move past allocated region
     
     # Coming into this section R5 hold the remaining size of the best block
-    Cmp(Reg(5), Word(0)), # check if R5 has anymore space to use for further allocation
-    B(LabelRef("has_remaining_block_else"), Cond.LE),
+    Sub(Reg(5), Reg(5), Word(4)),
+    Cmp(Reg(5), Word(4)), # check if R5 has anymore space to use for further allocation
+    B(LabelRef("has_remaining_block_else"), Cond.LT),
     Str(Reg(5), Reg(6), Word(0)), # Store size in R5 into memory at R6
     Str(Reg(10), Reg(6), Word(4)), # Store next pointer in R10 into memory at R6 + 4
     B(LabelRef("prev_pointer_if")),
@@ -190,6 +218,16 @@ CODE = [
     Label("after_prev_pointer_if"),
     B(LabelRef("malloc_done")), 
 
+    Label("malloc_block_requested_too_big_error"),
+    Mov(Reg(0), Word(0)), 
+    Sub(Reg(0), Reg(0), Word(1)),
+    B(LabelRef("malloc_done")),
+
+    Label("no_heap_remaining_to_allocate_error"),
+    Mov(Reg(0), Word(0)), 
+    Sub(Reg(0), Reg(0), Word(1)),
+    B(LabelRef("malloc_done")),
+
     Label("malloc_done"),
     Ldr(Reg(10), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # Pop R10 from stack
     Ldr(Reg(9), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # Pop R9 from stack
@@ -207,9 +245,9 @@ CODE = [
     Label("free"), # No return value
     # Just use LIFO insertion into free list
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(4), Reg(13), Word(0)), # Push R4 onto stack
-    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(5), Reg(13), Word(0)), # Push R4 onto stack
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(5), Reg(13), Word(0)), # Push R5 onto stack
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(6), Reg(13), Word(0)), # Push R6 onto stack
-    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Push R6 onto stack
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Push R14 onto stack
 
     LdrRel(Reg(4), LabelRef("freelist")),
     Cmp(Reg(0), Reg(4)), # Compare R0 to R4
@@ -229,8 +267,8 @@ CODE = [
     # while node.next < free_block:
     #   node = node.next
     Ldr(Reg(5), Reg(4), Word(4)), # Load value of node.next into R5
-    Cmp(Reg(0), Reg(5)),
-    B(LabelRef("exit_free_body"), Cond.GE),
+    Cmp(Reg(0), Reg(5)), # Want to find first block where R0 <= R5
+    B(LabelRef("exit_free_body"), Cond.LE),
     Mov(Reg(4), Reg(5)), # node = node.next
     B(LabelRef("free_linkedlist_body")),
 
@@ -291,6 +329,9 @@ CODE = [
     # Heap starts at 0xff000000 and grows upward to 0xff800000
     Label("freelist"), # This will ALWAYS refer to the start of the freelist allocator linkedlist
     Word(0xff000000), # Start of heap is at memory address 2^32 - 8MB (2^32 - 8 * 2^20)
+
+    Label("is_freelist_init"),
+    Word(0x00000000),
 
     Label("heap_start_size"),
     Word(0x00800000), # 8MB in bytes (TODO: not accounting for -4 for initial header yet)

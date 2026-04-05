@@ -21,12 +21,6 @@ class FunctionInformation:
     returnType: TType
     varTable: dict[str, TType]
 
-def typecheckExpression():
-    pass
-
-def typecheckStatement():
-    pass
-
 def checkTyped(expr_types: ExpressionTypes, expressions: list[Expression], types: list[TType]):
     return all([expr_types[expressions[i]] == types[i] for i in range(len(expressions))])
 
