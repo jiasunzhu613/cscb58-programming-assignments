@@ -14,6 +14,10 @@ from labelasm import assembleCode
 type ExpressionTypes = dict[Expression|LValue, TType]
 type SymbolTable = dict[str, FunctionInformation]
 
+@dataclass
+class FunctionMetadata:
+    type: TType
+    offset: int # in bytes from R11
 
 @dataclass
 class FunctionInformation:
@@ -37,12 +41,20 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
             else:
                 expr_types[node] = TType.IntPtr
         case VarDef(): # Create VarTarget instances 
-            expr_types[node] = node.type
+            # expr_types[node] = node.type
             # expr_types[VarTarget(name = node.name)] = node.type # This is used later for assignments, might not be needed
             f_current.varTable[node.name] = node.type
         case VarAccess():
             if node.target not in f_current.varTable:
                 raise VariableNotDefinedError(f"Variable '{node.target}' not defined", node)
+        case DerefAccess():
+            expr_types |= typecheckNode(node.address)
+
+            # TODO: should this check if address is NULL?
+            if expr_types[node.address] != TType.IntPtr:
+                raise ExpressionTypeMismatchError("Must be dereferencing a pointer")
+        case AddressOf():
+            pass # TODO: does this need a case?
         case VarTarget():
             expr_types[node] = f_current.varTable[node.name]
         case DerefTarget():
@@ -103,8 +115,10 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
                         raise ExpressionTypeMismatchError("Cannot divide non integer expressions", node)
                     expr_types[node] = TType.Int
                 
-                case BinaryOp.Ge | BinaryOp.Le | BinaryOp.Lt | BinaryOp.Eq | BinaryOp.Ne:
-                    pass
+                case BinaryOp.Ge | BinaryOp.Le | BinaryOp.Lt | BinaryOp.Eq | BinaryOp.Ne | BinaryOp.Gt:
+                    if expr_types[node.left] != expr_types[node.right]:
+                        raise ExpressionTypeMismatchError("Cannot compare two expressions of differing type")
+                    expr_types[node] = TType.Int # comparison will always result in int type
 
         case Call():
             # check if target exists
@@ -160,12 +174,13 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
 
         # Have to propagate local var table in this case
         case Function(): # A typecheck for function can come from a Call instance
+            # TODO: explicit check for tmain types
             for param in node.parameters:
                 expr_types |= typecheckNode(param, f_table, f_current)
             for var_def in node.local_vars:
                 expr_types |= typecheckNode(var_def, f_table, f_current)
 
-            expr_types |= typecheckNode(node.body, f_table)
+            expr_types |= typecheckNode(node.body, f_table, f_current)
         case _:
             print("DEBUG: this default case should NEVER be invoked")
     
@@ -180,7 +195,10 @@ def generateNode(node, expr_types: ExpressionTypes, f_table: SymbolTable, f_curr
     assembly_code: list[LabeledAssemblyCode | AssemblyCode] = []
     match node:
         case Function():
-            pass
+            # Need to figure out offsets? for parameters, for local_vars, and then store them in expr_types?
+
+            # Generate code for body
+            assembleCode.append(generateNode(node.body, expr_types, f_table, f_current))
         case VarDef():
             pass
         case Constant():
