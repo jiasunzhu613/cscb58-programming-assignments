@@ -25,6 +25,9 @@ class FunctionInformation:
     returnType: TType
     varTable: dict[str, TType]
 
+global_counter = {"literal_pool": {}}
+global_literal_pool = {}
+
 def checkTyped(expr_types: ExpressionTypes, expressions: list[Expression], types: list[TType]):
     return all([expr_types[expressions[i]] == types[i] for i in range(len(expressions))])
 
@@ -186,8 +189,30 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
     
     return expr_types
 
+def push(assembly_code, register):
+    assembly_code.append(Sub(Reg(13), Reg(13), Word(4)))
+    assembly_code.append(Str(Reg(register), Reg(13), Word(0)))
 
-def generateNode(node, expr_types: ExpressionTypes, f_table: SymbolTable, f_current: FunctionInformation) -> list[LabeledAssemblyCode | AssemblyCode]:
+def pop(assembly_code, register):
+    assembly_code.append(Ldr(Reg(register), Reg(13), Word(0)))
+    assembly_code.append(Add(Reg(13), Reg(13), Word(4)))
+
+def assign_literal(f_name, value):
+    global global_counter, global_literal_pool
+    if f_name not in global_counter["literal_pool"]:
+        global_counter["literal_pool"][f_name] = 0
+
+    name = f"literal_pool_{f_name}_{global_counter["literal_pool"][f_name]}"
+    
+    if f_name not in global_literal_pool:
+        global_literal_pool[f_name] = {}
+        
+    global_literal_pool[f_name][name] = value
+    global_counter["literal_pool"][f_name] += 1
+
+    return name
+
+def generateNode(node, expr_types: ExpressionTypes, f_name: str, f_table: SymbolTable, f_current: FunctionInformation, stack_offset: dict[str, int] = None) -> list[LabeledAssemblyCode | AssemblyCode]:
     # You may modify this function and its input arguments as you'd like.
 
     # TODO: Implement assembly code generation for each node type and add the generated instructions to assembly_code
@@ -195,16 +220,79 @@ def generateNode(node, expr_types: ExpressionTypes, f_table: SymbolTable, f_curr
     assembly_code: list[LabeledAssemblyCode | AssemblyCode] = []
     match node:
         case Function():
-            # Need to figure out offsets? for parameters, for local_vars, and then store them in expr_types?
+            # Push the function name as a label
+            assembly_code.append(Label(node.name))
 
+            # Push all stack related things on
+            # We know by this step all value in param and local are unique
+            # Push all parameters, local context, and local vars onto stack
+            # Note parameters are already pushed onto stack by user, except r0-r3
+            length_above_fp = 9 + len(node.parameters) 
+            offset_table = {}
+            for i in range(len(node.parameters)):
+                offset_table[node.parameters[len(node.parameters) - i - 1].name] = 4 * (length_above_fp - i)
+
+            # Push r3 to r0
+            # arg0 => r0, arg1 => r1, arg2 => r2, arg3 => r3
+            for i in range(3, -1, -1):
+                push(assembly_code, i)
+            
+            # Push R4 - R11 and R14 onto stack
+            # R11 is saving previous FP
+            for i in range(4, 11 + 1):
+                push(assembly_code, i)
+
+            # Push R14 onto stack
+            push(assembly_code, 14)
+            assembly_code.append(Mov(Reg(11), Reg(13)))
+
+            # Local variables
+            for i in range(len(node.local_vars)):
+                offset_table[node.local_vars[i].name] = -4 * i
+                assembly_code.extend(generateNode(node.local_vars[i], expr_types, f_name, f_table, f_current))
             # Generate code for body
-            assembleCode.append(generateNode(node.body, expr_types, f_table, f_current))
+            assembly_code.extend(generateNode(node.body, expr_types, f_name, f_table, f_current, offset_table))
+
+            # Generate code for return
+            # Codegen will put immediate value onto stack so we just read it into R0
+            assembly_code.extend(generateNode(node.retExpr, expr_types, f_name, f_table, f_current, offset_table))
+            pop(assembly_code, 0)
+
+            # Set return statement
+            # We set return value in R0 and we also need to call Bx(Reg(14)))
+            # Also need to cleanup stack first, so set SP to the position of FP and then load values from stack back into registers (callee saved values)
+            assembly_code.append(Mov(Reg(13), Reg(11))) # Move address at R11 into R13
+            # Pop R14 off stack
+            pop(assembly_code, 14)
+            # Pop R4 to R11 off stack (make sure to go in reverse order form 11 to 4)
+            for i in range(11, 4-1, -1):
+                assembly_code.append(Ldr(Reg(i), Reg(13), Word(0)))
+                assembly_code.append(Add(Reg(13), Reg(13), Word(4)))
+            
+            # Branch back to where function was called
+            assembly_code.append(Bx(Reg(14)))
         case VarDef():
-            pass
+            assembly_code.append(Mov(Reg(12), Word(0))) # Move 0 into scratch register to move onto stack after
+            push(assembly_code, 12)
         case Constant():
-            pass
-        case VarAccess():
-            pass
+            # WARNING: If the constant is really big, we cant just mov directly!
+            if isinstance(node.value, int):
+                # put onto scratch and then push into stack?
+                if 0 <= node.value <= 255: # Limit for 8bit values
+                    assembly_code.append(Mov(Reg(12), Word(node.value)))
+                else:
+                    # Literal pool, register value into literal pool?
+                    label = assign_literal(f_name, node.value)
+                    assembly_code.append(LdrRel(Reg(12), LabelRef(label)))
+            else:
+                assembly_code.append(Mov(Reg(12), Word(0)))
+            push(assembly_code, 12)
+        case VarAccess(): # Use stack_offset to find address, then push the address onto stack
+            # Just take R11 + stack_offset[node.name] => into scratch
+            # but need to know which side VarAccess is on tho???
+            assembly_code.append(Add(Reg(12), Reg(11), Word(stack_offset[node.target])))
+            assembly_code.append(Ldr(Reg(12), Reg(12), Word(0)))
+            push(assembly_code, 12)
     # Add more cases for each node type...
     return assembly_code
 
@@ -267,8 +355,12 @@ def generate(input_fs: list[Function], expr_types: ExpressionTypes, f_table: Sym
 
     # Generate each function's labeled assembly code
     for function in input_fs:
-        asm_code = generateNode(function, expr_types, f_table, f_table[function.name])
+        asm_code = generateNode(function, expr_types, function.name, f_table, f_table[function.name])
+        for key, value in global_literal_pool[function.name].items():
+            asm_code.append(Label(key))
+            asm_code.append(Word(value))
         assembly_code.append(asm_code)
+
 
     return assembly_code
 

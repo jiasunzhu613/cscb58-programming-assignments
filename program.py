@@ -9,6 +9,6 @@ FUNCS = [
         parameters = [VarDef(TType.Int, "arg1"), VarDef(TType.Int, "arg2")],
         local_vars = [VarDef(TType.Int, "i")], # all local vars will be declared here?
         body = Constant(10),
-        retExpr = Constant(0)
+        retExpr = Constant(500)
     )
 ]
