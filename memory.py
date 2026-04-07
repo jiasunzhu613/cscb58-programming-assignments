@@ -343,7 +343,7 @@ CODE = [
     Word(0x00000000),
 
     Label("heap_start_size"),
-    Word(0x00800000), # 8MB in bytes (TODO: not accounting for -4 for initial header yet)
+    Word(0x7ffffc), # 8MB in bytes (TODO: not accounting for -4 for initial header yet)
 
     Label("stdout"),
     Word(0x09000000)
