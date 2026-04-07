@@ -11,7 +11,7 @@ from typecheck_errors import *
 from labelasm import assembleCode
 
 # Built in function
-from malloc_free import CODE as MEMORY_CODE
+from part0_malloc_asm import CODE as MEMORY_CODE
 from print import CODE as PRINT_CODE
 from put_get_char import CODE as PUT_GET_CHAR_CODE
 
@@ -184,7 +184,7 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
             if expr_types[node.test] != TType.Int:
                 raise ExpressionTypeMismatchError("Test for while loop should be Int typed", node)
             
-            # expr_types |= typecheckNode(node.body)
+            expr_types |= typecheckNode(node.body, f_table, f_current)
 
         case If():
             # check if the condition is proper
@@ -192,7 +192,8 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
             if expr_types[node.test] != TType.Int:
                 raise ExpressionTypeMismatchError("Test for while loop should be Int typed", node)
             
-            # expr_types |= typecheckNode(node.body)
+            expr_types |= typecheckNode(node.trueCase, f_table, f_current)
+            expr_types |= typecheckNode(node.falseCase, f_table, f_current)
 
         case Assign():
             expr_types |= typecheckNode(node.left, f_table, f_current)
@@ -389,7 +390,7 @@ def generateNode(node, expr_types: ExpressionTypes, f_name: str, f_table: Symbol
                         assembly_code.append(Mov(Reg(12), Word(4)))
                         assembly_code.append(Mul(Reg(5), Reg(5), Reg(12)))
                         assembly_code.append(Sub(Reg(4), Reg(4), Reg(5)))
-                    elif expr_types[node.left] == TType.Int and expr_types[node.right] == TType.IntPtr:
+                    elif expr_types[node.left] == TType.IntPtr and expr_types[node.right] == TType.IntPtr:
                         assembly_code.append(Mov(Reg(12), Word(4)))
                         assembly_code.append(Sub(Reg(4), Reg(4), Reg(5)))
                         assembly_code.append(SDiv(Reg(4), Reg(4), Reg(12)))

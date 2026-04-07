@@ -19,8 +19,6 @@ print(pre_to_post(input().split()))
 # TODO: check if AAPCS is followed
 CODE = [
     # TODO: this may change later
-    LdrRel(Reg(4), LabelRef("stdin")), # Use R4 to hold stdin MMIO
-    LdrRel(Reg(5), LabelRef("stdout")), # Use R4 to hold stdout MMIO
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Push LR onto stack
     Bl(LabelRef("pre_to_post")),
     Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # Pop LR from stack
@@ -28,8 +26,13 @@ CODE = [
 
     # Function
     Label("pre_to_post"),
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(4), Reg(13), Word(0)), # Push R4 on to stack
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(5), Reg(13), Word(0)), # Push R5 on to stack
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(11), Reg(13), Word(0)), # Push FP on to stack
     Mov(Reg(11), Reg(13)), # Assign FP current value of SP
+
+    LdrRel(Reg(4), LabelRef("stdin")), # Use R4 to hold stdin MMIO
+    LdrRel(Reg(5), LabelRef("stdout")), # Use R4 to hold stdout MMIO
 
     # Should probably use frame pointer to mark
     Ldr(Reg(1), Reg(4), Word(0)), # Read from input, TODO: implement function to read input 
@@ -76,6 +79,8 @@ CODE = [
     Label("exit"),
     Mov(Reg(13), Reg(11)), # Return SP back to FP
     Ldr(Reg(11), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # Pop FP from stack
+    Ldr(Reg(5), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # Pop FP from stack
+    Ldr(Reg(4), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # Pop FP from stack
     Bx(Reg(14)),
 
 

@@ -80,7 +80,7 @@ CODE = [
     Add(Reg(6), Reg(6), Reg(2)), # Move past allocated region
     
     # Coming into this section R5 hold the remaining size of the best block
-    Sub(Reg(5), Reg(5), Word(4)),
+    # Sub(Reg(5), Reg(5), Word(4)),
     Cmp(Reg(5), Word(4)), # check if R5 has anymore space to use for further allocation
     B(LabelRef("has_remaining_block_else"), Cond.LT),
     Str(Reg(5), Reg(6), Word(0)), # Store size in R5 into memory at R6
@@ -133,7 +133,8 @@ CODE = [
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(4), Reg(13), Word(0)), # Push R4 onto stack
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(5), Reg(13), Word(0)), # Push R5 onto stack
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(6), Reg(13), Word(0)), # Push R6 onto stack
-    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Push R14 onto stack
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(7), Reg(13), Word(0)), # Push R6 onto stack
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Push R6 onto stack
 
     LdrRel(Reg(4), LabelRef("freelist")),
     Cmp(Reg(0), Reg(4)), # Compare R0 to R4
@@ -163,16 +164,23 @@ CODE = [
     Str(Reg(0), Reg(4), Word(4)), # Store block getting freed into next pointer for R4
     Str(Reg(5), Reg(0), Word(4)), # Store next block into pointer
 
-    Mov(Reg(6), Reg(0)),
+    Mov(Reg(7), Reg(4)), # Save R4 value for later
+    Mov(Reg(6), Reg(0)), # R6 will contain the address of current node
     Mov(Reg(0), Reg(4)), 
     Mov(Reg(1), Reg(6)),
-    Bl(LabelRef("merge_blocks")), # will return new block as R0
+    Bl(LabelRef("merge_blocks")), # will return 0 if merge succeeded 
+
+
+    Cmp(Reg(0), Word(0)), 
+    Mov(Reg(0), Reg(6), Cond.EQ), # Use middle block if merge was unsuccessful
+    Mov(Reg(0), Reg(7), Cond.NE), # Use bottom block if prev merge was successful
 
     Mov(Reg(1), Reg(5)), 
     Bl(LabelRef("merge_blocks")),
 
     Label("free_done"),
     Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # pop R14 off stack
+    Ldr(Reg(7), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # pop R6 off stack
     Ldr(Reg(6), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # pop R6 off stack
     Ldr(Reg(5), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # pop R5 off stack
     Ldr(Reg(4), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # pop R4 off stack
@@ -180,6 +188,7 @@ CODE = [
 
 
     # R0 will always be the lower block
+    # Will return 0 if merge failed, otherwise 1
     Label("merge_blocks"),
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(4), Reg(13), Word(0)), # Push R4 onto stack
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(5), Reg(13), Word(0)), # Push R4 onto stack
@@ -192,6 +201,7 @@ CODE = [
     Add(Reg(4), Reg(4), Reg(0)), # Add size of the block to the address of the block
     
     Cmp(Reg(4), Reg(1)), 
+    Mov(Reg(0), Word(0), Cond.NE),
     # If R4 == R1 then we should merge
     B(LabelRef("merge_blocks_done"), Cond.NE),
     Ldr(Reg(5), Reg(1), Word(4)), # load next pointer of second block first
@@ -201,6 +211,7 @@ CODE = [
     Add(Reg(7), Reg(7), Reg(6)), # add sizes together
     Str(Reg(7), Reg(0), Word(0)), # store size back
     Str(Reg(5), Reg(0), Word(4)), # store pointer at R0+4 for the size header offset
+    Mov(Reg(0), Word(1)),
     B(LabelRef("merge_blocks_done")),
 
     Label("merge_blocks_done"),
@@ -220,5 +231,5 @@ CODE = [
     Word(0x00000000),
 
     Label("heap_start_size"),
-    Word(0x00800000) # 8MB in bytes (TODO: not accounting for -4 for initial header yet)
+    Word(0x7ffffc), # 8MB in bytes (TODO: not accounting for -4 for initial header yet)
 ]
