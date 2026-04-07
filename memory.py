@@ -9,6 +9,7 @@ PRINT_FUNCTION = [
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(3), Reg(13), Word(0)), # push R3 onto stack
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(4), Reg(13), Word(0)), # push R4 onto stack
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(5), Reg(13), Word(0)), # push R5 onto stack
+    Mov(Reg(5), Word(0)),
 
     LdrRel(Reg(2), LabelRef("stdout")), # Store stdout memory mapped io
     Mov(Reg(3), Word(ord("0"))), 
@@ -81,29 +82,32 @@ CODE = [
     Mov(Reg(5), Reg(0)), 
     Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
 
-    # Mov(Reg(0), Word(89)), # set function call arg0
-    # Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
-    # Bl(LabelRef("malloc")),
-    # Mov(Reg(6), Reg(0)), 
-    # Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+    Mov(Reg(0), Word(89)), # set function call arg0
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    Bl(LabelRef("malloc")),
+    Mov(Reg(6), Reg(0)), 
+    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
 
+    Mov(Reg(12), Word(100)),
+    Str(Reg(12), Reg(4), Word(0)),
     # Start freeing
     Mov(Reg(0), Reg(5)), # set function call arg0
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
     Bl(LabelRef("free")),
     Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
     
-    # Mov(Reg(0), Reg(6)), # set function call arg0
-    # Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
-    # Bl(LabelRef("free")),
-    # Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+    Mov(Reg(0), Reg(6)), # set function call arg0
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    Bl(LabelRef("free")),
+    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
 
-    # Mov(Reg(0), Reg(4)), # set function call arg0
-    # Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
-    # Bl(LabelRef("free")),
-    # Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
+    Mov(Reg(0), Reg(4)), # set function call arg0
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
+    Bl(LabelRef("free")),
+    Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)),
 
     LdrRel(Reg(0), LabelRef("freelist")), 
+    # Ldr(Reg(0), Reg(0), Word(4)), 
     Ldr(Reg(0), Reg(0), Word(0)), 
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Store current LR on stack
     Bl(LabelRef("print")),
@@ -209,6 +213,7 @@ CODE = [
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(4), Reg(13), Word(0)), # Push R4 onto stack
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(5), Reg(13), Word(0)), # Push R4 onto stack
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(6), Reg(13), Word(0)), # Push R6 onto stack
+    Sub(Reg(13), Reg(13), Word(4)), Str(Reg(7), Reg(13), Word(0)), # Push R6 onto stack
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(14), Reg(13), Word(0)), # Push R6 onto stack
 
     LdrRel(Reg(4), LabelRef("freelist")),
@@ -230,7 +235,7 @@ CODE = [
     #   node = node.next
     Ldr(Reg(5), Reg(4), Word(4)), # Load value of node.next into R5
     Cmp(Reg(0), Reg(5)),
-    B(LabelRef("exit_free_body"), Cond.GE),
+    B(LabelRef("exit_free_body"), Cond.LE),
     Mov(Reg(4), Reg(5)), # node = node.next
     B(LabelRef("free_linkedlist_body")),
 
@@ -239,16 +244,23 @@ CODE = [
     Str(Reg(0), Reg(4), Word(4)), # Store block getting freed into next pointer for R4
     Str(Reg(5), Reg(0), Word(4)), # Store next block into pointer
 
-    Mov(Reg(6), Reg(0)),
+    Mov(Reg(7), Reg(4)), # Save R4 value for later
+    Mov(Reg(6), Reg(0)), # R6 will contain the address of current node
     Mov(Reg(0), Reg(4)), 
     Mov(Reg(1), Reg(6)),
-    Bl(LabelRef("merge_blocks")), # will return new block as R0
+    Bl(LabelRef("merge_blocks")), # will return 0 if merge succeeded 
+
+
+    Cmp(Reg(0), Word(0)), 
+    Mov(Reg(0), Reg(6), Cond.EQ), # Use middle block if merge was unsuccessful
+    Mov(Reg(0), Reg(7), Cond.NE), # Use bottom block if prev merge was successful
 
     Mov(Reg(1), Reg(5)), 
     Bl(LabelRef("merge_blocks")),
 
     Label("free_done"),
     Ldr(Reg(14), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # pop R14 off stack
+    Ldr(Reg(7), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # pop R6 off stack
     Ldr(Reg(6), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # pop R6 off stack
     Ldr(Reg(5), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # pop R5 off stack
     Ldr(Reg(4), Reg(13), Word(0)), Add(Reg(13), Reg(13), Word(4)), # pop R4 off stack
@@ -256,6 +268,7 @@ CODE = [
 
 
     # R0 will always be the lower block
+    # Will return 0 if merge failed, otherwise 1
     Label("merge_blocks"),
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(4), Reg(13), Word(0)), # Push R4 onto stack
     Sub(Reg(13), Reg(13), Word(4)), Str(Reg(5), Reg(13), Word(0)), # Push R4 onto stack
@@ -268,6 +281,7 @@ CODE = [
     Add(Reg(4), Reg(4), Reg(0)), # Add size of the block to the address of the block
     
     Cmp(Reg(4), Reg(1)), 
+    Mov(Reg(0), Word(0), Cond.NE),
     # If R4 == R1 then we should merge
     B(LabelRef("merge_blocks_done"), Cond.NE),
     Ldr(Reg(5), Reg(1), Word(4)), # load next pointer of second block first
@@ -277,6 +291,7 @@ CODE = [
     Add(Reg(7), Reg(7), Reg(6)), # add sizes together
     Str(Reg(7), Reg(0), Word(0)), # store size back
     Str(Reg(5), Reg(0), Word(4)), # store pointer at R0+4 for the size header offset
+    Mov(Reg(0), Word(1)),
     B(LabelRef("merge_blocks_done")),
 
     Label("merge_blocks_done"),
