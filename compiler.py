@@ -10,6 +10,11 @@ from exprstmt import *
 from typecheck_errors import *
 from labelasm import assembleCode
 
+# Built in function
+from malloc_free import CODE as MEMORY_CODE
+from print import CODE as PRINT_CODE
+from put_get_char import CODE as PUT_GET_CHAR_CODE
+
 
 type ExpressionTypes = dict[Expression|LValue, TType]
 type SymbolTable = dict[str, FunctionInformation]
@@ -25,8 +30,18 @@ class FunctionInformation:
     returnType: TType
     varTable: dict[str, TType]
 
-global_counter = {"literal_pool": {}}
+global_counter = {"literal_pool": {},
+                  "while": {},
+                  "if": {}}
 global_literal_pool = {}
+binop_cpsr_mapping = {
+    BinaryOp.Ge: Cond.GE,
+    BinaryOp.Le: Cond.LE,
+    BinaryOp.Lt: Cond.LT,
+    BinaryOp.Eq: Cond.EQ,
+    BinaryOp.Ne: Cond.NE,
+    BinaryOp.Gt: Cond.GT
+}
 
 def checkTyped(expr_types: ExpressionTypes, expressions: list[Expression], types: list[TType]):
     return all([expr_types[expressions[i]] == types[i] for i in range(len(expressions))])
@@ -50,40 +65,57 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
         case VarAccess():
             if node.target not in f_current.varTable:
                 raise VariableNotDefinedError(f"Variable '{node.target}' not defined", node)
+            
+            expr_types[node] = f_current.varTable[node.target]
         case DerefAccess():
-            expr_types |= typecheckNode(node.address)
+            expr_types |= typecheckNode(node.address, f_table, f_current)
 
             # TODO: should this check if address is NULL?
             if expr_types[node.address] != TType.IntPtr:
                 raise ExpressionTypeMismatchError("Must be dereferencing a pointer")
+            
+            # We only have 1 level of indirection
+            expr_types[node] = TType.Int
         case AddressOf():
-            pass # TODO: does this need a case?
+            expr_types |= typecheckNode(node.target, f_table, f_current)
+
+            # TODO: should this check if address is NULL?
+            if expr_types[node.target] != TType.Int:
+                raise ExpressionTypeMismatchError("Must be taking address of Type Int")
+            
+            # We only have 1 level of indirection
+            expr_types[node] = TType.IntPtr
         case VarTarget():
             expr_types[node] = f_current.varTable[node.name]
         case DerefTarget():
-            expr_types |= typecheckNode(node.address)
+            expr_types |= typecheckNode(node.address, f_table, f_current)
 
-            if expr_types[node.address] == TType.Int:
+            if expr_types[node.address] != TType.IntPtr:
                 raise ExpressionTypeMismatchError("Integer cannot be dereferenced", node)
             
             expr_types[node] = TType.Int
         case UnExp():
-            expr_types |= typecheckNode(node.exp)
+            expr_types |= typecheckNode(node.exp, f_table, f_current)
 
             match node.op:
-                case UnaryOp.Not | UnaryOp.Negate:
-                    # Make sure the expression is Int
+                case UnaryOp.Negate:
                     if expr_types[node.exp] != TType.Int:
                         raise ExpressionTypeMismatchError("Expression needs to be integer type", node)
                     
                     expr_types[node] = TType.Int
-                case UnaryOp.Address:
-                    # we are able to take address of any type
-                    expr_types[node] = TType.IntPtr
+                case UnaryOp.Not:
+                    # we are able to take logical not of a pointer
+                    # Result of logical not will always be Int typed
+                    # NULL => 0
+                    # all other pointer values => 1
+                    expr_types[node] = TType.Int
+                # case UnaryOp.Address:
+                #     # we are able to take address of any type
+                #     expr_types[node] = TType.IntPtr
             
         case BinExp():
-            expr_types |= typecheckNode(node.left)
-            expr_types |= typecheckNode(node.right)
+            expr_types |= typecheckNode(node.left, f_table, f_current)
+            expr_types |= typecheckNode(node.right, f_table, f_current)
 
             match node.op:
                 case BinaryOp.Plus:
@@ -97,7 +129,7 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
                     elif checkTyped(expr_types, [node.left, node.right], [TType.Int, TType.IntPtr]):
                         expr_types[node] = TType.IntPtr
 
-                case BinaryOp.Minus:
+                case BinaryOp.Subtract:
                     if expr_types[node.left] == TType.Int and expr_types[node.right] == TType.IntPtr:
                         raise ExpressionTypeMismatchError("Cannot subtract IntPtr from Int", node)
 
@@ -130,7 +162,7 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
             
             # check if argument types match parameter types
             for arg in node.arguments:
-                expr_types |= typecheckNode(arg)
+                expr_types |= typecheckNode(arg, f_table, f_current)
 
             # Length check
             target_fn_param_types = f_table[node.target].paramTypes
@@ -148,19 +180,19 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
         
         case WhileLoop():
             # check if the condition is proper
-            expr_types |= typecheckNode(node.test)
+            expr_types |= typecheckNode(node.test, f_table, f_current)
             if expr_types[node.test] != TType.Int:
                 raise ExpressionTypeMismatchError("Test for while loop should be Int typed", node)
             
-            expr_types |= typecheckNode(node.body)
+            # expr_types |= typecheckNode(node.body)
 
         case If():
             # check if the condition is proper
-            expr_types |= typecheckNode(node.test)
+            expr_types |= typecheckNode(node.test, f_table, f_current)
             if expr_types[node.test] != TType.Int:
                 raise ExpressionTypeMismatchError("Test for while loop should be Int typed", node)
             
-            expr_types |= typecheckNode(node.body)
+            # expr_types |= typecheckNode(node.body)
 
         case Assign():
             expr_types |= typecheckNode(node.left, f_table, f_current)
@@ -169,11 +201,11 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
             if expr_types[node.left] != expr_types[node.right]:
                 raise AssignmentTypeMismatchError("Assignment type mismatch", node)
 
-            expr_types[node] = expr_types[node.left]
+            # expr_types[node] = expr_types[node.left]
 
         case Block():
             for line in node.body:
-                expr_types |= typecheckNode(line)
+                expr_types |= typecheckNode(line, f_table, f_current)
 
         # Have to propagate local var table in this case
         case Function(): # A typecheck for function can come from a Call instance
@@ -184,6 +216,7 @@ def typecheckNode(node, f_table: SymbolTable, f_current: FunctionInformation) ->
                 expr_types |= typecheckNode(var_def, f_table, f_current)
 
             expr_types |= typecheckNode(node.body, f_table, f_current)
+            expr_types |= typecheckNode(node.retExpr, f_table, f_current)
         case _:
             print("DEBUG: this default case should NEVER be invoked")
     
@@ -212,6 +245,31 @@ def assign_literal(f_name, value):
 
     return name
 
+def assign_while_labels(f_name):
+    global global_counter
+    if f_name not in global_counter["while"]:
+        global_counter["while"][f_name] = 0
+    
+    start_label = f"while_start_{global_counter["while"][f_name]}"
+    end_label = f"while_end_{global_counter["while"][f_name]}"
+
+    global_counter["while"][f_name] += 1
+
+    return (start_label, end_label)
+
+def assign_if_label(f_name):
+    global global_counter
+    if f_name not in global_counter["if"]:
+        global_counter["if"][f_name] = 0
+    
+    else_label = f"else_{global_counter["if"][f_name]}"
+    end_label = f"if_end_{global_counter["if"][f_name]}"
+
+    global_counter["if"][f_name] += 1
+
+    return (else_label, end_label)
+
+
 def generateNode(node, expr_types: ExpressionTypes, f_name: str, f_table: SymbolTable, f_current: FunctionInformation, stack_offset: dict[str, int] = None) -> list[LabeledAssemblyCode | AssemblyCode]:
     # You may modify this function and its input arguments as you'd like.
 
@@ -227,14 +285,15 @@ def generateNode(node, expr_types: ExpressionTypes, f_name: str, f_table: Symbol
             # We know by this step all value in param and local are unique
             # Push all parameters, local context, and local vars onto stack
             # Note parameters are already pushed onto stack by user, except r0-r3
-            length_above_fp = 9 + len(node.parameters) 
+
+            # There are 9 elements from callee saved, but FP points directly at the last element, so just 8 to account for 
+            length_above_fp = 8 + len(node.parameters)
             offset_table = {}
             for i in range(len(node.parameters)):
                 offset_table[node.parameters[len(node.parameters) - i - 1].name] = 4 * (length_above_fp - i)
-
             # Push r3 to r0
             # arg0 => r0, arg1 => r1, arg2 => r2, arg3 => r3
-            for i in range(3, -1, -1):
+            for i in range(min(4, len(node.parameters)) - 1, -1, -1):
                 push(assembly_code, i)
             
             # Push R4 - R11 and R14 onto stack
@@ -248,8 +307,10 @@ def generateNode(node, expr_types: ExpressionTypes, f_name: str, f_table: Symbol
 
             # Local variables
             for i in range(len(node.local_vars)):
-                offset_table[node.local_vars[i].name] = -4 * i
+                offset_table[node.local_vars[i].name] = -4 * (i + 1)
                 assembly_code.extend(generateNode(node.local_vars[i], expr_types, f_name, f_table, f_current))
+            print(offset_table, file=sys.stderr)
+            
             # Generate code for body
             assembly_code.extend(generateNode(node.body, expr_types, f_name, f_table, f_current, offset_table))
 
@@ -269,6 +330,10 @@ def generateNode(node, expr_types: ExpressionTypes, f_name: str, f_table: Symbol
                 assembly_code.append(Ldr(Reg(i), Reg(13), Word(0)))
                 assembly_code.append(Add(Reg(13), Reg(13), Word(4)))
             
+            # Pop r3 to r0 into scratch
+            # arg0 => r0, arg1 => r1, arg2 => r2, arg3 => r3
+            for i in range(min(4, len(node.parameters)) - 1, -1, -1):
+                pop(assembly_code, 12)
             # Branch back to where function was called
             assembly_code.append(Bx(Reg(14)))
         case VarDef():
@@ -290,9 +355,137 @@ def generateNode(node, expr_types: ExpressionTypes, f_name: str, f_table: Symbol
         case VarAccess(): # Use stack_offset to find address, then push the address onto stack
             # Just take R11 + stack_offset[node.name] => into scratch
             # but need to know which side VarAccess is on tho???
-            assembly_code.append(Add(Reg(12), Reg(11), Word(stack_offset[node.target])))
-            assembly_code.append(Ldr(Reg(12), Reg(12), Word(0)))
+            # assembly_code.append(Add(Reg(12), Reg(11), Word(stack_offset[node.target])))
+            if 0 <= stack_offset[node.target] < 2**12 - 1:
+                assembly_code.append(Ldr(Reg(12), Reg(11), Word(stack_offset[node.target])))
+            else:
+                assembly_code.extend(generateNode(Constant(stack_offset[node.target]), expr_types, f_name, f_table, f_current, stack_offset))
+                pop(assembly_code, 12)
+                assembly_code.append(Add(Reg(12), Reg(11), Reg(12)))
+                assembly_code.append(Ldr(Reg(12), Reg(12), Word(0)))
             push(assembly_code, 12)
+        case BinExp():
+            assembly_code.extend(generateNode(node.left, expr_types, f_name, f_table, f_current, stack_offset))
+            assembly_code.extend(generateNode(node.right, expr_types, f_name, f_table, f_current, stack_offset))
+            pop(assembly_code, 5) # load right side into R5
+            pop(assembly_code, 4) # load left side into R4
+
+            # TODO: handle special cases in addition, mult, sub nad divide
+            match node.op:
+                case BinaryOp.Plus:
+                    if expr_types[node.left] == TType.IntPtr and expr_types[node.right] == TType.Int:
+                        assembly_code.append(Mov(Reg(12), Word(4)))
+                        assembly_code.append(Mul(Reg(5), Reg(5), Reg(12)))
+                    elif expr_types[node.left] == TType.Int and expr_types[node.right] == TType.IntPtr:
+                        assembly_code.append(Mov(Reg(12), Word(4)))
+                        assembly_code.append(Mul(Reg(4), Reg(4), Reg(12)))
+                    assembly_code.append(Add(Reg(4), Reg(4), Reg(5)))
+                case BinaryOp.Multiply:
+                    assembly_code.append(Mul(Reg(4), Reg(4), Reg(5)))
+                case BinaryOp.Subtract:
+                    if expr_types[node.left] == TType.Int and expr_types[node.right] == TType.Int:
+                        assembly_code.append(Sub(Reg(4), Reg(4), Reg(5)))
+                    elif expr_types[node.left] == TType.IntPtr and expr_types[node.right] == TType.Int:
+                        assembly_code.append(Mov(Reg(12), Word(4)))
+                        assembly_code.append(Mul(Reg(5), Reg(5), Reg(12)))
+                        assembly_code.append(Sub(Reg(4), Reg(4), Reg(5)))
+                    elif expr_types[node.left] == TType.Int and expr_types[node.right] == TType.IntPtr:
+                        assembly_code.append(Mov(Reg(12), Word(4)))
+                        assembly_code.append(Sub(Reg(4), Reg(4), Reg(5)))
+                        assembly_code.append(SDiv(Reg(4), Reg(4), Reg(12)))
+                case BinaryOp.Divide:
+                    assembly_code.append(SDiv(Reg(4), Reg(4), Reg(5)))
+                case BinaryOp.Ge | BinaryOp.Le | BinaryOp.Lt | BinaryOp.Eq | BinaryOp.Ne | BinaryOp.Gt:
+                    assembly_code.append(Mov(Reg(12), Word(0)))
+                    assembly_code.append(Cmp(Reg(4), Reg(5)))
+                    assembly_code.append(Mov(Reg(12), Word(1), binop_cpsr_mapping[node.op]))
+                    assembly_code.append(Mov(Reg(4), Reg(12)))
+            push(assembly_code, 4)
+        case UnExp():
+            assembly_code.extend(generateNode(node.exp, expr_types, f_name, f_table, f_current, stack_offset))
+            pop(assembly_code, 4)
+            match node.op:
+                case UnaryOp.Not:
+                    assembly_code.append(Cmp(Reg(4), Word(0)))
+                    assembly_code.append(Mov(Reg(4), Word(0), Cond.NE))
+                    assembly_code.append(Mov(Reg(4), Word(1), Cond.EQ))
+                case UnaryOp.Negate:
+                    # TODO: handle -2^31 case in twos complement
+                    assembly_code.append(Mov(Reg(12), Word(0)))
+                    assembly_code.append(Sub(Reg(12), Reg(12), Word(1)))
+                    assembly_code.append(Mul(Reg(4), Reg(4), Reg(12)))
+            push(assembly_code, 4)
+        case Assign():
+            # Storing into memory address on stack
+            assembly_code.extend(generateNode(node.left, expr_types, f_name, f_table, f_current, stack_offset))
+            assembly_code.extend(generateNode(node.right, expr_types, f_name, f_table, f_current, stack_offset))
+            pop(assembly_code, 4) # pop value of expression into r0
+            pop(assembly_code, 5) # pop address of lvalue into r4
+            assembly_code.append(Str(Reg(4), Reg(5), Word(0)))
+        case VarTarget():
+            assembly_code.extend(generateNode(Constant(stack_offset[node.name]), expr_types, f_name, f_table, f_current, stack_offset))
+            pop(assembly_code, 0)
+            assembly_code.append(Add(Reg(0), Reg(11), Reg(0))) # TODO: check if works
+            push(assembly_code, 0) # Push address of lvalue onto stack
+        case DerefTarget():
+            assembly_code.extend(generateNode(node.address, expr_types, f_name, f_table, f_current, stack_offset))
+        case DerefAccess():
+            assembly_code.extend(generateNode(node.address, expr_types, f_name, f_table, f_current, stack_offset))
+            pop(assembly_code, 4)
+            assembly_code.append(Ldr(Reg(4), Reg(4), Word(0)))
+            push(assembly_code, 4)
+        case AddressOf():
+            assembly_code.extend(generateNode(node.target, expr_types, f_name, f_table, f_current, stack_offset))
+        case WhileLoop():
+            # label
+            # check
+            # end if check fails
+            # go body and loop
+            start_label, end_label = assign_while_labels(f_name)
+
+            assembly_code.append(Label(start_label))
+            assembly_code.extend(generateNode(node.test, expr_types, f_name, f_table, f_current, stack_offset))
+            pop(assembly_code, 0)
+            assembly_code.append(Cmp(Reg(0), Word(0))) # If test failed, we exit
+            assembly_code.append(B(LabelRef(end_label), Cond.EQ))
+            assembly_code.extend(generateNode(node.body, expr_types, f_name, f_table, f_current, stack_offset))
+            assembly_code.append(B(LabelRef(start_label)))
+
+            assembly_code.append(Label(end_label))
+        case If():
+            else_label, end_label = assign_if_label(f_name)
+
+            assembly_code.extend(generateNode(node.test, expr_types, f_name, f_table, f_current, stack_offset))
+            pop(assembly_code, 0)
+            assembly_code.append(Cmp(Reg(0), Word(0))) # If test failed, we exit
+            assembly_code.append(B(LabelRef(else_label), Cond.EQ))
+            assembly_code.extend(generateNode(node.trueCase, expr_types, f_name, f_table, f_current, stack_offset))
+            assembly_code.append(B(LabelRef(end_label)))
+
+            assembly_code.append(Label(else_label))
+            assembly_code.extend(generateNode(node.falseCase, expr_types, f_name, f_table, f_current, stack_offset))
+            assembly_code.append(Label(end_label))
+        case Block():
+            for line in node.body:
+                assembly_code.extend(generateNode(line, expr_types, f_name, f_table, f_current, stack_offset))
+        case Call():
+            # set up all arguments, make sure to perserve caller saved stuff
+            # go from end to start and generate argument expressions
+            # pop top 4 into registers
+            # call_f_information = f_table[node.target]
+            for i in range(len(node.arguments) - 1, -1, -1):
+                assembly_code.extend(generateNode(node.arguments[i], expr_types, f_name, f_table, f_current, stack_offset))
+            
+            for i in range(min(4, len(node.arguments))):
+                pop(assembly_code, i)
+            
+            assembly_code.append(Bl(LabelRef(node.target)))
+
+            for i in range(max(0, len(node.arguments) - 4)):
+                pop(assembly_code, 12) # pop function arguments 4 to n off stack into scratch
+
+            push(assembly_code, 0)
+
     # Add more cases for each node type...
     return assembly_code
 
@@ -323,6 +516,13 @@ def typecheck(input_fs: list[Function]) -> tuple[ExpressionTypes, SymbolTable]:
         paramTypes: list[TType] = [param.type for param in function.parameters]
         returnType: TType = function.retType
         f_table[function.name] = FunctionInformation(paramTypes, returnType, {}) # TODO: this dict is the local scoped function local table
+    
+    # Add builtin function definitions
+    f_table["putchar"] = FunctionInformation(paramTypes=[TType.Int], returnType=TType.Int, varTable={})
+    f_table["getchar"] = FunctionInformation(paramTypes=[], returnType=TType.Int, varTable={})
+    f_table["print"] = FunctionInformation(paramTypes=[TType.Int], returnType=TType.Int, varTable={})
+    f_table["malloc"] = FunctionInformation(paramTypes=[TType.Int], returnType=TType.IntPtr, varTable={})
+    f_table["free"] = FunctionInformation(paramTypes=[TType.IntPtr], returnType=TType.Int, varTable={})
     
     # Check if tmain is defined
     if "tmain" not in f_table:
@@ -356,9 +556,10 @@ def generate(input_fs: list[Function], expr_types: ExpressionTypes, f_table: Sym
     # Generate each function's labeled assembly code
     for function in input_fs:
         asm_code = generateNode(function, expr_types, function.name, f_table, f_table[function.name])
-        for key, value in global_literal_pool[function.name].items():
-            asm_code.append(Label(key))
-            asm_code.append(Word(value))
+        if function.name in global_literal_pool:
+            for key, value in global_literal_pool[function.name].items():
+                asm_code.append(Label(key))
+                asm_code.append(Word(value))
         assembly_code.append(asm_code)
 
 
@@ -370,6 +571,12 @@ def compileCode(input_fs: list[Function], output = sys.stdout.buffer):
         expr_types, f_table = typecheck(input_fs)
         asm_fns = generate(input_fs, expr_types, f_table)
         concatAsm = [elem for sublist in asm_fns for elem in sublist]
+
+        # Append built in function
+        concatAsm.extend(MEMORY_CODE)
+        concatAsm.extend(PRINT_CODE)
+        concatAsm.extend(PUT_GET_CHAR_CODE)
+
         assembleCode(concatAsm, output)
     except TypeCheckError as tc_err:
         print(f"TypeCheck error raised: {tc_err}")
